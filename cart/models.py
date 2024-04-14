@@ -4,6 +4,9 @@ from django.db.models.signals import pre_save
 from django.shortcuts import reverse
 from django.utils.text import slugify
 
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+
 User = get_user_model()
 
 
@@ -53,21 +56,35 @@ class SizeVariation(models.Model):
 
 
 class Product(models.Model):
-    title = models.CharField(max_length=150)
-    slug = models.SlugField(unique=True)
-    image = models.ImageField(upload_to='product_images')
-    description = models.TextField()
-    price = models.IntegerField(default=0)
+    title = models.CharField(name="title", max_length=150)
+    slug = models.SlugField(name="slug", unique=True)
+    image = models.ImageField(name="image", upload_to='product_images', default="images/product.png")
+    description = models.TextField(name="description")
+    price = models.FloatField(name="price", default=0)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
     active = models.BooleanField(default=False)
+    category_name_encoded = models.FloatField(null=True, blank=True)
+    category_name_encoded_log = models.FloatField(null=True, blank=True)
+    
     available_colours = models.ManyToManyField(ColourVariation)
     available_sizes = models.ManyToManyField(SizeVariation)
     primary_category = models.ForeignKey(
-        Category, related_name='primary_products', blank=True, null=True, on_delete=models.CASCADE)
-    secondary_categories = models.ManyToManyField(Category, blank=True)
-    stock = models.IntegerField(default=0)
+    Category, related_name='primary_products', blank=True, null=True, on_delete=models.CASCADE)
+    secondary_categories = models.ManyToManyField(Category)
 
+    
+    stock = models.IntegerField(name="stock", default=0)
+    
+    available = models.BooleanField(name="available", default=True)
+    currency = models.CharField(name="currency", max_length=10, default="USD")
+    country = models.CharField(name="country",max_length=255, default="EEUU")
+    brand = models.CharField(name="brand", max_length=255, null=True, blank=True)
+    brand_standarized = models.CharField(name="brand_standarized", max_length=255, null=True, blank=True)
+    description = models.TextField(name="description", null=True, blank=True)
+
+    users = models.ManyToManyField(User, related_name='products_interacted', through='cart.UserProductInteractions')
+    
     def __str__(self):
         return self.title
 
@@ -86,6 +103,18 @@ class Product(models.Model):
     @property
     def in_stock(self):
         return self.stock > 0
+
+
+class UserProductInteractions(models.Model):
+    was_recommended = models.BooleanField(default=False)
+    calification = models.IntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)]
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    user_id = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    product_id = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
 
 
 class OrderItem(models.Model):
